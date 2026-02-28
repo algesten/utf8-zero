@@ -30,7 +30,7 @@ impl<F: FnMut(&str)> LossyDecoder<F> {
     #[inline]
     pub fn new(push_str: F) -> Self {
         LossyDecoder {
-            push_str: push_str,
+            push_str,
             incomplete: Incomplete {
                 buffer: [0, 0, 0, 0],
                 buffer_len: 0,

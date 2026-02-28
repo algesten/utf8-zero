@@ -10,7 +10,7 @@ use std::fmt;
 use std::str;
 
 /// The replacement character, U+FFFD. In lossy decoding, insert it for every decoding error.
-pub const REPLACEMENT_CHARACTER: &'static str = "\u{FFFD}";
+pub const REPLACEMENT_CHARACTER: &str = "\u{FFFD}";
 
 #[derive(Debug, Copy, Clone)]
 pub enum DecodeError<'a> {
@@ -115,7 +115,7 @@ impl Incomplete {
         let len = bytes.len();
         buffer[..len].copy_from_slice(bytes);
         Incomplete {
-            buffer: buffer,
+            buffer,
             buffer_len: len as u8,
         }
     }
@@ -124,6 +124,7 @@ impl Incomplete {
     ///   If no more input is available, this is invalid byte sequence.
     /// * `Some((result, remaining_input))`: We’re done with this `Incomplete`.
     ///   To keep decoding, pass `remaining_input` to `decode()`.
+    #[allow(clippy::type_complexity)]
     pub fn try_complete<'input>(&mut self, input: &'input [u8])
                                 -> Option<(Result<&str, &[u8]>, &'input [u8])> {
         let (consumed, opt_result) = self.try_complete_offsets(input);
@@ -140,7 +141,7 @@ impl Incomplete {
     fn take_buffer(&mut self) -> &[u8] {
         let len = self.buffer_len as usize;
         self.buffer_len = 0;
-        &self.buffer[..len as usize]
+        &self.buffer[..len]
     }
 
     /// (consumed_from_input, None): not enough input
