@@ -69,7 +69,7 @@ fn test_is_utf8() {
 }
 
 /// A re-implementation of String::from_utf8_lossy
-pub fn string_from_utf8_lossy(input: &[u8]) -> Cow<str> {
+pub fn string_from_utf8_lossy(input: &[u8]) -> Cow<'_, str> {
     let mut result = decode(input);
     if let Ok(s) = result {
         return s.into()
