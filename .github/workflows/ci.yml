@@ -42,3 +42,18 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Test
         run: cargo +${{steps.toolchain.outputs.name}} test
+
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        id: toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri, rust-src
+      - name: Miri
+        run: cargo +${{steps.toolchain.outputs.name}} miri test

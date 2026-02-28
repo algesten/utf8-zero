@@ -122,6 +122,15 @@ fn test_string_from_utf8_lossy() {
 pub fn all_partitions<'a, F>(input: &'a [u8], f: F)
     where F: Fn(&[&[u8]])
 {
+    // Under Miri the exponential partition count is too slow for long inputs.
+    #[cfg(miri)]
+    const MAX_LEN: usize = 10;
+    #[cfg(not(miri))]
+    const MAX_LEN: usize = usize::MAX;
+
+    if input.len() > MAX_LEN {
+        return;
+    }
 
     fn all_partitions_inner<'a, F>(chunks: &mut Vec<&'a [u8]>, input: &'a [u8], f: &F)
         where F: Fn(&[&[u8]])
