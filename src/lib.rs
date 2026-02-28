@@ -1,3 +1,17 @@
+#![deny(missing_docs)]
+
+//! Incremental, zero-copy UTF-8 decoding with error handling.
+//!
+//! Three levels of API:
+//!
+//! * [`decode()`] -- low-level, single-shot decode of a byte slice. Returns the valid
+//!   prefix and either an invalid sequence or an incomplete suffix that can be completed
+//!   with more input.
+//! * [`LossyDecoder`] -- a push-based streaming decoder. Feed it chunks of bytes and it
+//!   calls back with `&str` slices, replacing errors with U+FFFD.
+//! * [`BufReadDecoder`] -- a pull-based streaming decoder wrapping any [`std::io::BufRead`],
+//!   with both strict and lossy modes.
+
 mod lossy;
 mod read;
 
@@ -12,20 +26,26 @@ use std::str;
 /// The replacement character, U+FFFD. In lossy decoding, insert it for every decoding error.
 pub const REPLACEMENT_CHARACTER: &str = "\u{FFFD}";
 
+/// Error from [`decode()`] when the input is not entirely valid UTF-8.
 #[derive(Debug, Copy, Clone)]
 pub enum DecodeError<'a> {
     /// In lossy decoding insert `valid_prefix`, then `"\u{FFFD}"`,
     /// then call `decode()` again with `remaining_input`.
     Invalid {
+        /// The leading valid UTF-8 portion of the input.
         valid_prefix: &'a str,
+        /// The bytes that form the invalid sequence.
         invalid_sequence: &'a [u8],
+        /// The bytes after the invalid sequence, not yet decoded.
         remaining_input: &'a [u8],
     },
 
     /// Call the `incomplete_suffix.try_complete` method with more input when available.
     /// If no more input is available, this is an invalid byte sequence.
     Incomplete {
+        /// The leading valid UTF-8 portion of the input.
         valid_prefix: &'a str,
+        /// The trailing bytes that start a multi-byte code point but are not complete.
         incomplete_suffix: Incomplete,
     },
 }
@@ -62,12 +82,46 @@ impl<'a> fmt::Display for DecodeError<'a> {
 
 impl<'a> Error for DecodeError<'a> {}
 
+/// An incomplete byte sequence for a multi-byte UTF-8 code point.
+///
+/// Feed more bytes via [`try_complete()`](Incomplete::try_complete) to finish decoding.
 #[derive(Debug, Copy, Clone)]
 pub struct Incomplete {
+    /// Internal buffer holding the incomplete bytes (up to 4).
     pub buffer: [u8; 4],
+    /// How many bytes in `buffer` are occupied.
     pub buffer_len: u8,
 }
 
+/// Decode a byte slice as UTF-8, returning the valid prefix on error.
+///
+/// Unlike [`std::str::from_utf8()`], this distinguishes between invalid and
+/// incomplete byte sequences so that callers can request more input.
+///
+/// ```
+/// use utf8::{decode, DecodeError};
+///
+/// // Fully valid input.
+/// assert_eq!(decode(b"hello").unwrap(), "hello");
+///
+/// // Invalid byte — returns the valid prefix and the bad sequence.
+/// match decode(b"hello\xC0world") {
+///     Err(DecodeError::Invalid { valid_prefix, .. }) => {
+///         assert_eq!(valid_prefix, "hello");
+///     }
+///     _ => unreachable!(),
+/// }
+///
+/// // Input ends mid-codepoint — returns Incomplete so the caller can
+/// // supply more bytes.
+/// match decode(b"\xC3") {
+///     Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
+///         assert_eq!(valid_prefix, "");
+///         assert_eq!(incomplete_suffix.buffer_len, 1);
+///     }
+///     _ => unreachable!(),
+/// }
+/// ```
 pub fn decode(input: &[u8]) -> Result<&str, DecodeError<'_>> {
     let error = match str::from_utf8(input) {
         Ok(valid) => return Ok(valid),
@@ -95,6 +149,7 @@ pub fn decode(input: &[u8]) -> Result<&str, DecodeError<'_>> {
 }
 
 impl Incomplete {
+    /// Create an empty `Incomplete` with no buffered bytes.
     pub fn empty() -> Self {
         Incomplete {
             buffer: [0, 0, 0, 0],
@@ -102,10 +157,12 @@ impl Incomplete {
         }
     }
 
+    /// Returns `true` if no bytes are buffered.
     pub fn is_empty(&self) -> bool {
         self.buffer_len == 0
     }
 
+    /// Create an `Incomplete` pre-filled with the given bytes.
     pub fn new(bytes: &[u8]) -> Self {
         let mut buffer = [0, 0, 0, 0];
         let len = bytes.len();

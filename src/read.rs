@@ -5,12 +5,48 @@ use std::io::{self, BufRead};
 use std::str;
 
 /// Wraps a `std::io::BufRead` buffered byte stream and decode it as UTF-8.
+///
+/// # Examples
+///
+/// Lossy decoding of an in-memory byte stream:
+///
+/// ```
+/// use std::io::BufReader;
+/// use utf8::BufReadDecoder;
+///
+/// let input = b"Hello \xF0\x9F\x8C\x8D\xC0world";
+/// let reader = BufReader::new(&input[..]);
+/// let output = BufReadDecoder::read_to_string_lossy(reader).unwrap();
+/// assert_eq!(output, "Hello \u{1F30D}\u{FFFD}world");
+/// ```
+///
+/// Strict chunk-by-chunk decoding:
+///
+/// ```
+/// use std::io::BufReader;
+/// use utf8::{BufReadDecoder, BufReadDecoderError};
+///
+/// let input = b"ok\xFFend";
+/// let mut decoder = BufReadDecoder::new(BufReader::new(&input[..]));
+/// let mut parts = Vec::new();
+/// while let Some(result) = decoder.next_strict() {
+///     match result {
+///         Ok(s) => parts.push(format!("str:{s}")),
+///         Err(BufReadDecoderError::InvalidByteSequence(b)) => {
+///             parts.push(format!("err:{b:02x?}"));
+///         }
+///         Err(BufReadDecoderError::Io(e)) => panic!("io error: {e}"),
+///     }
+/// }
+/// assert_eq!(parts, vec!["str:ok", "err:[ff]", "str:end"]);
+/// ```
 pub struct BufReadDecoder<B: BufRead> {
     buf_read: B,
     bytes_consumed: usize,
     incomplete: Incomplete,
 }
 
+/// Error returned by [`BufReadDecoder::next_strict()`].
 #[derive(Debug)]
 pub enum BufReadDecoderError<'a> {
     /// Represents one UTF-8 error in the byte stream.
@@ -64,6 +100,7 @@ impl<B: BufRead> BufReadDecoder<B> {
         Ok(string)
     }
 
+    /// Wrap a buffered byte stream for UTF-8 decoding.
     pub fn new(buf_read: B) -> Self {
         Self {
             buf_read,
