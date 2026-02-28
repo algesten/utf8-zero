@@ -1,7 +1,7 @@
 #![no_std]
 #![deny(missing_docs)]
 
-//! Incremental, zero-copy UTF-8 decoding with error handling.
+//! Zero-copy, incremental UTF-8 decoding with error handling.
 //!
 //! Three levels of API:
 //!
@@ -105,7 +105,7 @@ pub struct Incomplete {
 /// incomplete byte sequences so that callers can request more input.
 ///
 /// ```
-/// use utf8::{decode, DecodeError};
+/// use utf8_zero::{decode, DecodeError};
 ///
 /// // Fully valid input.
 /// assert_eq!(decode(b"hello").unwrap(), "hello");

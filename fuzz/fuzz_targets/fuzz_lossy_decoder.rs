@@ -29,7 +29,7 @@ fuzz_target!(|input: Input| {
     // Feed chunks through LossyDecoder and collect output.
     let mut output = String::new();
     {
-        let mut decoder = utf8::LossyDecoder::new(|s| output.push_str(s));
+        let mut decoder = utf8_zero::LossyDecoder::new(|s| output.push_str(s));
         for window in splits.windows(2) {
             let chunk = &input.data[window[0]..window[1]];
             decoder.feed(chunk);

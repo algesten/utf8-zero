@@ -15,7 +15,7 @@ use super::*;
 /// Single-shot lossy decoding (like `String::from_utf8_lossy` but returning `String`):
 ///
 /// ```
-/// use utf8::LossyDecoder;
+/// use utf8_zero::LossyDecoder;
 ///
 /// fn string_from_utf8_lossy(input: &[u8]) -> String {
 ///     let mut string = String::new();
@@ -29,7 +29,7 @@ use super::*;
 /// Streaming chunks -- a multi-byte code point split across two feeds:
 ///
 /// ```
-/// use utf8::LossyDecoder;
+/// use utf8_zero::LossyDecoder;
 ///
 /// let mut output = String::new();
 /// {

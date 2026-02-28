@@ -4,7 +4,7 @@ use libfuzzer_sys::fuzz_target;
 use std::str;
 
 fuzz_target!(|data: &[u8]| {
-    let result = utf8::decode(data);
+    let result = utf8_zero::decode(data);
 
     match result {
         Ok(valid) => {
@@ -12,7 +12,7 @@ fuzz_target!(|data: &[u8]| {
             assert_eq!(valid.as_bytes(), data);
             assert!(str::from_utf8(data).is_ok());
         }
-        Err(utf8::DecodeError::Invalid {
+        Err(utf8_zero::DecodeError::Invalid {
             valid_prefix,
             invalid_sequence,
             remaining_input,
@@ -33,7 +33,7 @@ fuzz_target!(|data: &[u8]| {
             let std_err = str::from_utf8(data).unwrap_err();
             assert_eq!(std_err.valid_up_to(), valid_prefix.len());
         }
-        Err(utf8::DecodeError::Incomplete {
+        Err(utf8_zero::DecodeError::Incomplete {
             valid_prefix,
             incomplete_suffix,
         }) => {

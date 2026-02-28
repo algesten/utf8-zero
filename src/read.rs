@@ -13,7 +13,7 @@ use std::string::String;
 ///
 /// ```
 /// use std::io::BufReader;
-/// use utf8::BufReadDecoder;
+/// use utf8_zero::BufReadDecoder;
 ///
 /// let input = b"Hello \xF0\x9F\x8C\x8D\xC0world";
 /// let reader = BufReader::new(&input[..]);
@@ -25,7 +25,7 @@ use std::string::String;
 ///
 /// ```
 /// use std::io::BufReader;
-/// use utf8::{BufReadDecoder, BufReadDecoderError};
+/// use utf8_zero::{BufReadDecoder, BufReadDecoderError};
 ///
 /// let input = b"ok\xFFend";
 /// let mut decoder = BufReadDecoder::new(BufReader::new(&input[..]));

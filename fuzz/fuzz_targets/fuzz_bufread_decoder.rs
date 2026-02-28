@@ -13,7 +13,7 @@ fuzz_target!(|data: &[u8]| {
         data,
     );
 
-    let output = utf8::BufReadDecoder::read_to_string_lossy(reader)
+    let output = utf8_zero::BufReadDecoder::read_to_string_lossy(reader)
         .expect("read_to_string_lossy should not return an io::Error on an in-memory reader");
 
     assert_eq!(

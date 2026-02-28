@@ -1,15 +1,13 @@
 [package]
-name = "utf-8"
+name = "utf8-zero"
 version = "0.7.6"
 edition = "2021"
 authors = ["Simon Sapin <simon.sapin@exyr.org>"]
-description = "Incremental, zero-copy UTF-8 decoding with error handling"
+description = "Zero-copy, incremental UTF-8 decoding with error handling"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/SimonSapin/rust-utf8"
-
-[lib]
-name = "utf8"
-test = false
+keywords = ["utf-8", "decode", "incremental", "streaming", "no_std"]
+categories = ["encoding", "no-std", "parsing"]
 
 [features]
 default = ["std"]

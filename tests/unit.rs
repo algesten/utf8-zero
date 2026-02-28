@@ -1,9 +1,9 @@
-extern crate utf8;
+extern crate utf8_zero;
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::io;
-use utf8::*;
+use utf8_zero::*;
 
 /// A re-implementation of std::str::from_utf8
 pub fn str_from_utf8(input: &[u8]) -> Result<&str, usize> {
