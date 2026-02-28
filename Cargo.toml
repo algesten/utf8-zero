@@ -12,8 +12,3 @@ categories = ["encoding", "no-std", "parsing"]
 [features]
 default = ["std"]
 std = []
-
-[dependencies]
-
-[profile.test]
-#opt-level = 3
