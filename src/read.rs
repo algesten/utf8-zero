@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fmt;
 use std::io::{self, BufRead};
 use std::str;
+use std::string::String;
 
 /// Wraps a `std::io::BufRead` buffered byte stream and decode it as UTF-8.
 ///

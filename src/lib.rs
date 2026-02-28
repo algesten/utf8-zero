@@ -1,3 +1,4 @@
+#![no_std]
 #![deny(missing_docs)]
 
 //! Incremental, zero-copy UTF-8 decoding with error handling.
@@ -9,19 +10,23 @@
 //!   with more input.
 //! * [`LossyDecoder`] -- a push-based streaming decoder. Feed it chunks of bytes and it
 //!   calls back with `&str` slices, replacing errors with U+FFFD.
-//! * [`BufReadDecoder`] -- a pull-based streaming decoder wrapping any [`std::io::BufRead`],
-//!   with both strict and lossy modes.
+//! * [`BufReadDecoder`] (requires the `std` feature) -- a pull-based streaming decoder
+//!   wrapping any [`std::io::BufRead`], with both strict and lossy modes.
+
+#[cfg(feature = "std")]
+extern crate std;
 
 mod lossy;
+#[cfg(feature = "std")]
 mod read;
 
 pub use lossy::LossyDecoder;
+#[cfg(feature = "std")]
 pub use read::{BufReadDecoder, BufReadDecoderError};
 
-use std::cmp;
-use std::error::Error;
-use std::fmt;
-use std::str;
+use core::cmp;
+use core::fmt;
+use core::str;
 
 /// The replacement character, U+FFFD. In lossy decoding, insert it for every decoding error.
 pub const REPLACEMENT_CHARACTER: &str = "\u{FFFD}";
@@ -80,7 +85,8 @@ impl<'a> fmt::Display for DecodeError<'a> {
     }
 }
 
-impl<'a> Error for DecodeError<'a> {}
+#[cfg(feature = "std")]
+impl<'a> std::error::Error for DecodeError<'a> {}
 
 /// An incomplete byte sequence for a multi-byte UTF-8 code point.
 ///

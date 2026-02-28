@@ -11,6 +11,10 @@ repository = "https://github.com/SimonSapin/rust-utf8"
 name = "utf8"
 test = false
 
+[features]
+default = ["std"]
+std = []
+
 [dependencies]
 
 [profile.test]
