@@ -9,8 +9,8 @@ use utf8::*;
 pub fn str_from_utf8(input: &[u8]) -> Result<&str, usize> {
     match decode(input) {
         Ok(s) => return Ok(s),
-        Err(DecodeError::Invalid { valid_prefix, .. }) |
-        Err(DecodeError::Incomplete { valid_prefix, .. }) => Err(valid_prefix.len()),
+        Err(DecodeError::Invalid { valid_prefix, .. })
+        | Err(DecodeError::Incomplete { valid_prefix, .. }) => Err(valid_prefix.len()),
     }
 }
 
@@ -72,21 +72,25 @@ fn test_is_utf8() {
 pub fn string_from_utf8_lossy(input: &[u8]) -> Cow<'_, str> {
     let mut result = decode(input);
     if let Ok(s) = result {
-        return s.into()
+        return s.into();
     }
     let mut string = String::with_capacity(input.len() + REPLACEMENT_CHARACTER.len());
     loop {
         match result {
             Ok(s) => {
                 string.push_str(s);
-                return string.into()
+                return string.into();
             }
             Err(DecodeError::Incomplete { valid_prefix, .. }) => {
                 string.push_str(valid_prefix);
                 string.push_str(REPLACEMENT_CHARACTER);
-                return string.into()
+                return string.into();
             }
-            Err(DecodeError::Invalid { valid_prefix, remaining_input, .. }) => {
+            Err(DecodeError::Invalid {
+                valid_prefix,
+                remaining_input,
+                ..
+            }) => {
                 string.push_str(valid_prefix);
                 string.push_str(REPLACEMENT_CHARACTER);
                 result = decode(remaining_input);
@@ -95,6 +99,7 @@ pub fn string_from_utf8_lossy(input: &[u8]) -> Cow<'_, str> {
     }
 }
 
+#[rustfmt::skip]
 pub const DECODED_LOSSY: &'static [(&'static [u8], &'static str)] = &[
     (b"hello", "hello"),
     (b"\xe0\xb8\xa8\xe0\xb9\x84\xe0\xb8\x97\xe0\xb8\xa2\xe4\xb8\xad\xe5\x8d\x8e", "ศไทย中华"),
@@ -120,7 +125,8 @@ fn test_string_from_utf8_lossy() {
 }
 
 pub fn all_partitions<'a, F>(input: &'a [u8], f: F)
-    where F: Fn(&[&[u8]])
+where
+    F: Fn(&[&[u8]]),
 {
     // Under Miri the exponential partition count is too slow for long inputs.
     #[cfg(miri)]
@@ -133,7 +139,8 @@ pub fn all_partitions<'a, F>(input: &'a [u8], f: F)
     }
 
     fn all_partitions_inner<'a, F>(chunks: &mut Vec<&'a [u8]>, input: &'a [u8], f: &F)
-        where F: Fn(&[&[u8]])
+    where
+        F: Fn(&[&[u8]]),
     {
         if input.is_empty() {
             f(chunks)
@@ -195,12 +202,11 @@ impl<'a> io::BufRead for Chunks<'a> {
             let front = self.0.front_mut().unwrap();
             *front = &front[bytes..];
             if !front.is_empty() {
-                return
+                return;
             }
         }
         if self.0.len() > 1 {
             self.0.pop_front();
         }
     }
-
 }

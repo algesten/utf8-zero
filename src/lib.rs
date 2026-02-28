@@ -76,9 +76,7 @@ pub fn decode(input: &[u8]) -> Result<&str, DecodeError<'_>> {
 
     // FIXME: separate function from here to guide inlining?
     let (valid, after_valid) = input.split_at(error.valid_up_to());
-    let valid = unsafe {
-        str::from_utf8_unchecked(valid)
-    };
+    let valid = unsafe { str::from_utf8_unchecked(valid) };
 
     match error.error_len() {
         Some(invalid_sequence_length) => {
@@ -86,15 +84,13 @@ pub fn decode(input: &[u8]) -> Result<&str, DecodeError<'_>> {
             Err(DecodeError::Invalid {
                 valid_prefix: valid,
                 invalid_sequence: invalid,
-                remaining_input: rest
+                remaining_input: rest,
             })
         }
-        None => {
-            Err(DecodeError::Incomplete {
-                valid_prefix: valid,
-                incomplete_suffix: Incomplete::new(after_valid),
-            })
-        }
+        None => Err(DecodeError::Incomplete {
+            valid_prefix: valid,
+            incomplete_suffix: Incomplete::new(after_valid),
+        }),
     }
 }
 
@@ -125,8 +121,10 @@ impl Incomplete {
     /// * `Some((result, remaining_input))`: We’re done with this `Incomplete`.
     ///   To keep decoding, pass `remaining_input` to `decode()`.
     #[allow(clippy::type_complexity)]
-    pub fn try_complete<'input>(&mut self, input: &'input [u8])
-                                -> Option<(Result<&str, &[u8]>, &'input [u8])> {
+    pub fn try_complete<'input>(
+        &mut self,
+        input: &'input [u8],
+    ) -> Option<(Result<&str, &[u8]>, &'input [u8])> {
         let (consumed, opt_result) = self.try_complete_offsets(input);
         let result = opt_result?;
         let remaining_input = &input[consumed..];
@@ -171,7 +169,8 @@ impl Incomplete {
                     match error.error_len() {
                         Some(invalid_sequence_length) => {
                             let consumed = invalid_sequence_length
-                                .checked_sub(initial_buffer_len).unwrap();
+                                .checked_sub(initial_buffer_len)
+                                .unwrap();
                             self.buffer_len = invalid_sequence_length as u8;
                             (consumed, Some(Err(())))
                         }

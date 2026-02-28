@@ -56,23 +56,28 @@ impl<F: FnMut(&str)> LossyDecoder<F> {
                     (self.push_str)(REPLACEMENT_CHARACTER);
                     input = remaining
                 }
-                None => {
-                    return
-                }
+                None => return,
             }
         }
         loop {
             match decode(input) {
                 Ok(s) => {
                     (self.push_str)(s);
-                    return
+                    return;
                 }
-                Err(DecodeError::Incomplete { valid_prefix, incomplete_suffix }) => {
+                Err(DecodeError::Incomplete {
+                    valid_prefix,
+                    incomplete_suffix,
+                }) => {
                     (self.push_str)(valid_prefix);
                     self.incomplete = incomplete_suffix;
-                    return
+                    return;
                 }
-                Err(DecodeError::Invalid { valid_prefix, remaining_input, .. }) => {
+                Err(DecodeError::Invalid {
+                    valid_prefix,
+                    remaining_input,
+                    ..
+                }) => {
                     (self.push_str)(valid_prefix);
                     (self.push_str)(REPLACEMENT_CHARACTER);
                     input = remaining_input

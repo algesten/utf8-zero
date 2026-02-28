@@ -1,8 +1,8 @@
-use std::io::{self, BufRead};
+use super::*;
 use std::error::Error;
 use std::fmt;
+use std::io::{self, BufRead};
 use std::str;
-use super::*;
 
 /// Wraps a `std::io::BufRead` buffered byte stream and decode it as UTF-8.
 pub struct BufReadDecoder<B: BufRead> {
@@ -74,7 +74,8 @@ impl<B: BufRead> BufReadDecoder<B> {
 
     /// Same as `BufReadDecoder::next_strict`, but replace UTF-8 errors with U+FFFD.
     pub fn next_lossy(&mut self) -> Option<io::Result<&str>> {
-        self.next_strict().map(|result| result.or_else(|e| e.lossy()))
+        self.next_strict()
+            .map(|result| result.or_else(|e| e.lossy()))
     }
 
     /// Decode and consume the next chunk of UTF-8 input.
@@ -93,9 +94,9 @@ impl<B: BufRead> BufReadDecoder<B> {
             ($io_result: expr) => {
                 match $io_result {
                     Ok(value) => value,
-                    Err(error) => return Some(Err(BufReadDecoderError::Io(error)))
+                    Err(error) => return Some(Err(BufReadDecoderError::Io(error))),
                 }
-            }
+            };
         }
         let (source, result) = loop {
             if self.bytes_consumed > 0 {
@@ -108,16 +109,14 @@ impl<B: BufRead> BufReadDecoder<B> {
             enum Unreachable {}
             let _: Unreachable = if self.incomplete.is_empty() {
                 if buf.is_empty() {
-                    return None  // EOF
+                    return None; // EOF
                 }
                 match str::from_utf8(buf) {
-                    Ok(_) => {
-                        break (BytesSource::BufRead(buf.len()), Ok(()))
-                    }
+                    Ok(_) => break (BytesSource::BufRead(buf.len()), Ok(())),
                     Err(error) => {
                         let valid_up_to = error.valid_up_to();
                         if valid_up_to > 0 {
-                            break (BytesSource::BufRead(valid_up_to), Ok(()))
+                            break (BytesSource::BufRead(valid_up_to), Ok(()));
                         }
                         match error.error_len() {
                             Some(invalid_sequence_length) => {
@@ -127,25 +126,23 @@ impl<B: BufRead> BufReadDecoder<B> {
                                 self.bytes_consumed = buf.len();
                                 self.incomplete = Incomplete::new(buf);
                                 // need more input bytes
-                                continue
+                                continue;
                             }
                         }
                     }
                 }
             } else {
                 if buf.is_empty() {
-                    break (BytesSource::Incomplete, Err(()))  // EOF with incomplete code point
+                    break (BytesSource::Incomplete, Err(())); // EOF with incomplete code point
                 }
                 let (consumed, opt_result) = self.incomplete.try_complete_offsets(buf);
                 self.bytes_consumed = consumed;
                 match opt_result {
                     None => {
                         // need more input bytes
-                        continue
+                        continue;
                     }
-                    Some(result) => {
-                        break (BytesSource::Incomplete, result)
-                    }
+                    Some(result) => break (BytesSource::Incomplete, result),
                 }
             };
         };
@@ -155,9 +152,7 @@ impl<B: BufRead> BufReadDecoder<B> {
                 let buf = try_io!(self.buf_read.fill_buf());
                 &buf[..byte_count]
             }
-            BytesSource::Incomplete => {
-                self.incomplete.take_buffer()
-            }
+            BytesSource::Incomplete => self.incomplete.take_buffer(),
         };
         match result {
             Ok(()) => Some(Ok(unsafe { str::from_utf8_unchecked(bytes) })),
