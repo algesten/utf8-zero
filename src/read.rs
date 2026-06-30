@@ -123,11 +123,7 @@ impl<B: BufRead> BufReadDecoder<B> {
     /// This is similar to `Iterator::next`,
     /// except that decoded chunks borrow the decoder (~iterator)
     /// so they need to be handled or copied before the next chunk can start decoding.
-    pub fn next_strict(&mut self) -> Option<Result<&str, BufReadDecoderError<'_>>> {
-        enum BytesSource {
-            BufRead(usize),
-            Incomplete,
-        }
+    pub fn next_strict<'a>(&'a mut self) -> Option<Result<&'a str, BufReadDecoderError<'a>>> {
         macro_rules! try_io {
             ($io_result: expr) => {
                 match $io_result {
@@ -136,29 +132,59 @@ impl<B: BufRead> BufReadDecoder<B> {
                 }
             };
         }
-        let (source, result) = loop {
+        loop {
             if self.bytes_consumed > 0 {
                 self.buf_read.consume(self.bytes_consumed);
                 self.bytes_consumed = 0;
             }
             let buf = try_io!(self.buf_read.fill_buf());
 
-            // Force loop iteration to go through an explicit `continue`
-            enum Unreachable {}
-            let _: Unreachable = if self.incomplete.is_empty() {
+            if self.incomplete.is_empty() {
                 if buf.is_empty() {
                     return None; // EOF
                 }
                 match str::from_utf8(buf) {
-                    Ok(_) => break (BytesSource::BufRead(buf.len()), Ok(())),
+                    Ok(_) => {
+                        let len = buf.len();
+                        self.bytes_consumed = len;
+                        // SAFETY:
+                        // Lifetime Extension: The returned slice must be valid for `'a`. We helper-extend
+                        // the lifetime of `buf` to `'a` using `from_raw_parts`. This is safe because the
+                        // returned reference mutably borrows `self` for `'a`, preventing any other
+                        // operations on `self.buf_read` (such as `consume` or `fill_buf`) while the
+                        // reference is alive. The contract of `BufRead::fill_buf` guarantees the buffer
+                        // remains valid until the next I/O or consume/fill_buf call.
+                        //
+                        // NOTE: This unsafe lifetime extension is a workaround for a borrow checker
+                        // limitation regarding conditional returns from loops (NLL Problem Case #3).
+                        // See upstream issue: https://github.com/rust-lang/rust/issues/51545
+                        // This can be removed once Polonius (the next-gen borrow checker) is stable.
+                        let extended = unsafe { core::slice::from_raw_parts(buf.as_ptr(), len) };
+                        // SAFETY:
+                        // UTF-8 Validity: `str::from_utf8(buf)` returned `Ok(_)`, so the entire `buf`
+                        // (and thus `extended`) is valid UTF-8.
+                        return Some(Ok(unsafe { str::from_utf8_unchecked(extended) }));
+                    }
                     Err(error) => {
                         let valid_up_to = error.valid_up_to();
                         if valid_up_to > 0 {
-                            break (BytesSource::BufRead(valid_up_to), Ok(()));
+                            self.bytes_consumed = valid_up_to;
+                            // SAFETY:
+                            // Lifetime Extension: See justification above (in the Ok(_) branch).
+                            let extended = unsafe { core::slice::from_raw_parts(buf.as_ptr(), valid_up_to) };
+                            // SAFETY:
+                            // UTF-8 Validity: `str::from_utf8(buf)` returned `Err`, but the prefix of `buf`
+                            // up to `valid_up_to` is guaranteed to be valid UTF-8 by `Utf8Error::valid_up_to`
+                            // invariants (std axiom).
+                            return Some(Ok(unsafe { str::from_utf8_unchecked(extended) }));
                         }
                         match error.error_len() {
                             Some(invalid_sequence_length) => {
-                                break (BytesSource::BufRead(invalid_sequence_length), Err(()))
+                                self.bytes_consumed = invalid_sequence_length;
+                                // SAFETY:
+                                // Lifetime Extension: See justification above (in the Ok(_) branch).
+                                let extended = unsafe { core::slice::from_raw_parts(buf.as_ptr(), invalid_sequence_length) };
+                                return Some(Err(BufReadDecoderError::InvalidByteSequence(extended)));
                             }
                             None => {
                                 self.bytes_consumed = buf.len();
@@ -171,7 +197,8 @@ impl<B: BufRead> BufReadDecoder<B> {
                 }
             } else {
                 if buf.is_empty() {
-                    break (BytesSource::Incomplete, Err(())); // EOF with incomplete code point
+                    let bytes = self.incomplete.take_buffer();
+                    return Some(Err(BufReadDecoderError::InvalidByteSequence(bytes)));
                 }
                 let (consumed, opt_result) = self.incomplete.try_complete_offsets(buf);
                 self.bytes_consumed = consumed;
@@ -180,21 +207,22 @@ impl<B: BufRead> BufReadDecoder<B> {
                         // need more input bytes
                         continue;
                     }
-                    Some(result) => break (BytesSource::Incomplete, result),
+                    Some(result) => {
+                        let bytes = self.incomplete.take_buffer();
+                        match result {
+                            // SAFETY:
+                            // - Contract: `bytes` must be valid UTF-8.
+                            // - Evidence: `result` being `Ok(())` means `self.incomplete.try_complete`
+                            //   successfully completed and validated the buffered bytes as UTF-8.
+                            //   By the safety-usable invariant of `try_complete_offsets` (proven inline there),
+                            //   the buffered bytes `self.incomplete.buffer[..self.incomplete.buffer_len]`
+                            //   (which `take_buffer()` returns) are valid UTF-8.
+                            Ok(()) => return Some(Ok(unsafe { str::from_utf8_unchecked(bytes) })),
+                            Err(()) => return Some(Err(BufReadDecoderError::InvalidByteSequence(bytes))),
+                        }
+                    }
                 }
-            };
-        };
-        let bytes = match source {
-            BytesSource::BufRead(byte_count) => {
-                self.bytes_consumed = byte_count;
-                let buf = try_io!(self.buf_read.fill_buf());
-                &buf[..byte_count]
             }
-            BytesSource::Incomplete => self.incomplete.take_buffer(),
-        };
-        match result {
-            Ok(()) => Some(Ok(unsafe { str::from_utf8_unchecked(bytes) })),
-            Err(()) => Some(Err(BufReadDecoderError::InvalidByteSequence(bytes))),
         }
     }
 }

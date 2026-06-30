@@ -210,3 +210,39 @@ impl<'a> io::BufRead for Chunks<'a> {
         }
     }
 }
+
+struct AdversarialBufRead {
+    calls: std::cell::Cell<usize>,
+}
+
+impl io::Read for AdversarialBufRead {
+    fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+        Ok(0)
+    }
+}
+
+impl io::BufRead for AdversarialBufRead {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        let c = self.calls.get();
+        self.calls.set(c + 1);
+        if c == 0 {
+            Ok(b"A")
+        } else {
+            Ok(b"\xFF")
+        }
+    }
+
+    fn consume(&mut self, _amt: usize) {}
+}
+
+#[test]
+fn test_adversarial_bufread() {
+    let mut decoder = BufReadDecoder::new(AdversarialBufRead {
+        calls: std::cell::Cell::new(0),
+    });
+    if let Some(Ok(s)) = decoder.next_strict() {
+        assert_eq!(s.as_bytes(), b"A");
+    } else {
+        panic!("Expected Ok(s)");
+    }
+}

@@ -136,6 +136,12 @@ pub fn decode(input: &[u8]) -> Result<&str, DecodeError<'_>> {
 
     // FIXME: separate function from here to guide inlining?
     let (valid, after_valid) = input.split_at(error.valid_up_to());
+    // SAFETY:
+    // - Contract: `valid` must be valid UTF-8.
+    // - Evidence: `error` is a `Utf8Error` returned by `str::from_utf8(input)`.
+    //   Based on the invariants of `Utf8Error::valid_up_to`, the prefix of `input`
+    //   up to `error.valid_up_to()` is guaranteed to be valid UTF-8, which is exactly
+    //   what we set to `valid` above.
     let valid = unsafe { str::from_utf8_unchecked(valid) };
 
     match error.error_len() {
@@ -193,6 +199,14 @@ impl Incomplete {
         let remaining_input = &input[consumed..];
         let result_bytes = self.take_buffer();
         let result = match result {
+            // SAFETY:
+            // - Contract: `result_bytes` must be valid UTF-8.
+            // - Evidence: Relies on the safety-usable invariant of `try_complete_offsets`.
+            //   Since `result` is `Ok(())`, `try_complete_offsets` guarantees that
+            //   `self.buffer[..self.buffer_len]` is valid UTF-8.
+            //   `result_bytes` is exactly `self.buffer[..self.buffer_len]` (obtained via `take_buffer()`),
+            //   which corresponds to this validated UTF-8 prefix.
+            //   Therefore, `result_bytes` is valid UTF-8.
             Ok(()) => Ok(unsafe { str::from_utf8_unchecked(result_bytes) }),
             Err(()) => Err(result_bytes),
         };
@@ -208,6 +222,11 @@ impl Incomplete {
     /// (consumed_from_input, None): not enough input
     /// (consumed_from_input, Some(Err(()))): error bytes in buffer
     /// (consumed_from_input, Some(Ok(()))): UTF-8 string in buffer
+    ///
+    /// # Safety-usable invariant
+    ///
+    /// If this function returns `Some(Ok(()))` as the second element of the tuple,
+    /// it guarantees that `self.buffer[..self.buffer_len]` is valid UTF-8.
     fn try_complete_offsets(&mut self, input: &[u8]) -> (usize, Option<Result<(), ()>>) {
         let initial_buffer_len = self.buffer_len as usize;
         let copied_from_input;
@@ -219,6 +238,11 @@ impl Incomplete {
         let spliced = &self.buffer[..initial_buffer_len + copied_from_input];
         match str::from_utf8(spliced) {
             Ok(_) => {
+                // SAFETY:
+                // Upholds safety-usable invariant: `str::from_utf8(spliced)` returned `Ok(_)`,
+                // indicating the entire `spliced` buffer is valid UTF-8.
+                // We set `self.buffer_len` to `spliced.len()`, so `self.buffer[..self.buffer_len]`
+                // (which is exactly `spliced`) is guaranteed to be valid UTF-8 when we return `Some(Ok(()))`.
                 self.buffer_len = spliced.len() as u8;
                 (copied_from_input, Some(Ok(())))
             }
@@ -226,6 +250,13 @@ impl Incomplete {
                 let valid_up_to = error.valid_up_to();
                 if valid_up_to > 0 {
                     let consumed = valid_up_to.checked_sub(initial_buffer_len).unwrap();
+                    // SAFETY:
+                    // Upholds safety-usable invariant: `str::from_utf8(spliced)` returned an error,
+                    // but the prefix of `spliced` up to `valid_up_to` is guaranteed to be valid UTF-8
+                    // by `Utf8Error::valid_up_to` invariants (std axiom).
+                    // We set `self.buffer_len` to `valid_up_to`, so `self.buffer[..self.buffer_len]`
+                    // (which is exactly `spliced[..valid_up_to]`) is guaranteed to be valid UTF-8
+                    // when we return `Some(Ok(()))`.
                     self.buffer_len = valid_up_to as u8;
                     (consumed, Some(Ok(())))
                 } else {
