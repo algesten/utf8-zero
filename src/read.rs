@@ -186,14 +186,31 @@ impl<B: BufRead> BufReadDecoder<B> {
         };
         let bytes = match source {
             BytesSource::BufRead(byte_count) => {
-                self.bytes_consumed = byte_count;
                 let buf = try_io!(self.buf_read.fill_buf());
-                &buf[..byte_count]
+                let bytes = match buf.get(..byte_count) {
+                    Some(bytes) => bytes,
+                    None => {
+                        return Some(Err(BufReadDecoderError::Io(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "buffer shortened while decoding UTF-8",
+                        ))))
+                    }
+                };
+                self.bytes_consumed = byte_count;
+                bytes
             }
             BytesSource::Incomplete => self.incomplete.take_buffer(),
         };
         match result {
-            Ok(()) => Some(Ok(unsafe { str::from_utf8_unchecked(bytes) })),
+            // BufRead is a safe trait: a subsequent fill_buf call need not
+            // return the bytes that were inspected above. Validate the exact
+            // slice being returned, including when it comes from Incomplete.
+            Ok(()) => Some(str::from_utf8(bytes).map_err(|_| {
+                BufReadDecoderError::Io(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "buffer changed while decoding UTF-8",
+                ))
+            })),
             Err(()) => Some(Err(BufReadDecoderError::InvalidByteSequence(bytes))),
         }
     }
